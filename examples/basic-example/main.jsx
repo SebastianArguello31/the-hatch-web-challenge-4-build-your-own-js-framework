@@ -2,6 +2,7 @@ import { createElement, createStore, render } from "../../src/mini-framework.js"
 
 const container = document.getElementById("app");
 
+// nextTaskId se guarda junto a las tareas para que eliminar una fila no recicle su identificador.
 const initialState = {
     count: 0,
     showDescription: true,
@@ -13,6 +14,7 @@ const initialState = {
     ]
 };
 
+// Cada acción describe lo ocurrido. El reducer devuelve un estado nuevo cuando hay un cambio.
 function reducer(state, action) {
     switch (action.type) {
         case "counter/increment":
@@ -78,6 +80,7 @@ function reducer(state, action) {
 
 const store = createStore(reducer, initialState);
 
+// Estos métodos convierten los eventos de la interfaz en acciones que entiende el reducer.
 const actions = {
     increment() {
         store.dispatch({ type: "counter/increment" });
@@ -149,6 +152,7 @@ function TaskItem({ task, onRemove }) {
     );
 }
 
+// La clave pertenece a la tarea, por eso su fila conserva la identidad al invertir la lista.
 function TaskList({ items, onRemove }) {
     return (
         <ul id="task-list">
@@ -199,6 +203,7 @@ function App({ state }) {
     );
 }
 
+// La suscripción usa esta misma función después de cada cambio y la llamada inicial monta la página.
 function updateView() {
     render(
         <App state={store.getState()} />,

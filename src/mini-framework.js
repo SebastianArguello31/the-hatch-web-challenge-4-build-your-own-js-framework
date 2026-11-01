@@ -1,16 +1,20 @@
+// Cada contenedor recuerda su último árbol virtual; WeakMap permite liberar el registro cuando el contenedor deja de usarse.
 const roots = new WeakMap();
 
 const booleanProperties = new Set(["checked", "disabled", "selected", "multiple", "required", "readOnly"]);
 
+// JSX puede producir listas anidadas y condiciones falsas. El renderizador trabaja con una lista plana de elementos y textos.
 function normalizeChildren(children) {
     const normalizedChildren = [];
 
     for (const child of children) {
         if (Array.isArray(child)) {
+            // Una lista creada con map puede aparecer dentro de otros hijos. El spread incorpora sus elementos al mismo nivel.
             normalizedChildren.push(...normalizeChildren(child));
             continue;
         }
 
+        // En JSX, una condición falsa como visible && <p /> deja un booleano. El número 0 sí debe mostrarse.
         if (child === null || child === undefined || typeof child === "boolean") {
             continue;
         }
@@ -36,9 +40,11 @@ function getKey(virtualNode) {
         return null;
     }
 
+    // Una clave numérica 0 también identifica un elemento. Solo null o undefined indican que falta la clave.
     return virtualNode.props.key ?? null;
 }
 
+// Las claves identifican hermanos. Mezclar hijos con y sin clave haría ambigua la comparación al cambiar el orden.
 function validateKeys(children) {
     const keys = new Set();
     let keyedChildren = 0;
@@ -67,6 +73,7 @@ function validateKeys(children) {
     }
 }
 
+// JSX llama a esta función tanto para etiquetas como para componentes. Los componentes se resuelven antes de tocar el DOM.
 export function createElement(type, props, ...children) {
     const elementProps = { ...(props ?? {}) };
     const normalizedChildren = normalizeChildren(children);
@@ -78,6 +85,7 @@ export function createElement(type, props, ...children) {
             throw new TypeError("Un componente debe devolver un elemento virtual creado con createElement o JSX.");
         }
 
+        // Si <TaskItem key={id} /> devuelve un <li>, el padre compara ese <li>. Por eso copiamos allí la clave.
         if (elementProps.key !== null && elementProps.key !== undefined) {
             return {
                 ...result,
@@ -109,6 +117,7 @@ function isEventProperty(name) {
 }
 
 function getEventName(name) {
+    // Por ejemplo, onClick se convierte en click, el nombre que espera addEventListener.
     return name.slice(2).toLowerCase();
 }
 
@@ -124,6 +133,7 @@ function getAttributeName(name) {
     return name;
 }
 
+// Los eventos se registran con funciones y los controles tienen propiedades vivas, como value y checked.
 function setProperty(element, name, value) {
     if (name === "key" || value === null || value === undefined) {
         return;
@@ -141,6 +151,7 @@ function setProperty(element, name, value) {
     if (name === "value") {
         const nextValue = String(value);
 
+        // Evitar una escritura idéntica ayuda a conservar la posición del cursor mientras el usuario escribe.
         if (element.value !== nextValue) {
             element.value = nextValue;
         }
@@ -163,6 +174,7 @@ function removeProperty(element, name, previousValue) {
 
     if (isEventProperty(name)) {
         if (typeof previousValue === "function") {
+            // Para retirar el manejador hace falta la misma función que se registró en el render anterior.
             element.removeEventListener(getEventName(name), previousValue);
         }
 
@@ -183,6 +195,7 @@ function removeProperty(element, name, previousValue) {
     element.removeAttribute(getAttributeName(name));
 }
 
+// Compara las props anteriores con las nuevas para retirar atributos y sustituir manejadores que ya no corresponden.
 function updateProperties(element, previousProps, nextProps) {
     for (const [name, previousValue] of Object.entries(previousProps)) {
         const nextValue = nextProps[name];
@@ -208,6 +221,7 @@ function updateProperties(element, previousProps, nextProps) {
             continue;
         }
 
+        // El usuario puede cambiar una casilla directamente en el DOM aunque sus props virtuales sigan iguales.
         const isFormProperty = name === "value" || booleanProperties.has(name);
 
         if (previousValue !== nextValue || isFormProperty) {
@@ -216,6 +230,7 @@ function updateProperties(element, previousProps, nextProps) {
     }
 }
 
+// Construye el subárbol real de forma recursiva antes de insertarlo en su contenedor.
 function createDomNode(virtualNode) {
     if (typeof virtualNode === "string") {
         return document.createTextNode(virtualNode);
@@ -227,6 +242,7 @@ function createDomNode(virtualNode) {
         element.appendChild(createDomNode(child));
     }
 
+    // Aplicamos las props después de crear los hijos para que un select ya tenga sus opciones al asignarle value.
     updateProperties(element, {}, virtualNode.props);
 
     return element;
@@ -236,6 +252,7 @@ function hasKeys(children) {
     return children.some((child) => getKey(child) !== null);
 }
 
+// childNodes cambia al modificar el DOM. La copia inicial permite seguir localizando los hijos originales por posición.
 function updateChildrenByPosition(element, previousChildren, nextChildren) {
     const previousDomNodes = Array.from(element.childNodes);
 
@@ -248,6 +265,7 @@ function updateChildrenByPosition(element, previousChildren, nextChildren) {
     }
 }
 
+// El mapa relaciona cada clave anterior con su nodo real para poder moverlo sin perder su identidad.
 function updateChildrenByKey(element, previousChildren, nextChildren) {
     const previousDomNodes = Array.from(element.childNodes);
     const previousByKey = new Map();
@@ -276,10 +294,12 @@ function updateChildrenByKey(element, previousChildren, nextChildren) {
         const nodeAtPosition = element.childNodes[index] ?? null;
 
         if (domNode !== nodeAtPosition) {
+            // Si [A, B] cambia a [B, A], insertar B delante de A mueve el mismo nodo. Con null se coloca al final.
             element.insertBefore(domNode, nodeAtPosition);
         }
     });
 
+    // Las entradas reutilizadas ya se quitaron del mapa; las restantes pertenecen a hijos que desaparecieron.
     for (const { domNode } of previousByKey.values()) {
         element.removeChild(domNode);
     }
@@ -292,6 +312,7 @@ function updateChildren(element, previousChildren, nextChildren) {
     if (previousChildren.length > 0 && nextChildren.length > 0 && previousHasKeys !== nextHasKeys) {
         const nextDomNodes = nextChildren.map(createDomNode);
 
+        // Al pasar de hijos con claves a hijos sin claves, o al revés, se reconstruyen solo los hijos de este padre.
         element.replaceChildren(...nextDomNodes);
         return;
     }
@@ -304,6 +325,7 @@ function updateChildren(element, previousChildren, nextChildren) {
     updateChildrenByPosition(element, previousChildren, nextChildren);
 }
 
+// Devuelve el nodo que queda en el DOM, incluso si hubo que reemplazarlo al cambiar su etiqueta o su clave.
 function patch(parent, domNode, previousNode, nextNode) {
     if (previousNode === null) {
         const newDomNode = createDomNode(nextNode);
@@ -328,6 +350,7 @@ function patch(parent, domNode, previousNode, nextNode) {
 
     if (nextIsText) {
         if (previousNode !== nextNode) {
+            // Cambiar el contenido del nodo de texto conserva tanto el nodo como su elemento padre.
             domNode.nodeValue = nextNode;
         }
 
@@ -341,6 +364,7 @@ function patch(parent, domNode, previousNode, nextNode) {
     return domNode;
 }
 
+// La primera llamada monta la raíz; las siguientes comparan contra el último árbol del mismo contenedor.
 export function render(virtualNode, container) {
     if (!(container instanceof Element)) {
         throw new TypeError("El contenedor debe ser un elemento del DOM.");
@@ -363,6 +387,7 @@ export function render(virtualNode, container) {
     roots.set(container, virtualNode);
 }
 
+// El estado y los suscriptores quedan en el cierre de este store. La vista se conecta mediante subscribe.
 export function createStore(reducer, initialState) {
     if (typeof reducer !== "function") {
         throw new TypeError("El reducer debe ser una función.");
@@ -377,6 +402,7 @@ export function createStore(reducer, initialState) {
 
     const listeners = new Set();
 
+    // Devuelve la referencia actual. Los cambios deben pasar por dispatch para que la vista reciba la notificación.
     function getState() {
         return state;
     }
@@ -386,6 +412,7 @@ export function createStore(reducer, initialState) {
             throw new TypeError("La acción debe ser un objeto con un type de texto no vacío.");
         }
 
+        // Un dispatch dentro del reducer intentaría calcular otro cambio antes de terminar el primero.
         if (isReducing) {
             throw new Error("No puedes despachar acciones desde el reducer.");
         }
@@ -399,16 +426,19 @@ export function createStore(reducer, initialState) {
             if (nextState === undefined) {
                 throw new TypeError("El reducer debe devolver un estado.");
             }
+        // La marca se restablece incluso si el reducer falla, para permitir el siguiente dispatch.
         } finally {
             isReducing = false;
         }
 
+        // Devolver la misma referencia desde el reducer indica que la acción no requiere avisar a la vista.
         if (Object.is(state, nextState)) {
             return action;
         }
 
         state = nextState;
 
+        // La copia fija quién recibe esta notificación aunque un suscriptor cancele su registro durante el recorrido.
         const currentListeners = [...listeners];
 
         for (const listener of currentListeners) {
@@ -425,6 +455,7 @@ export function createStore(reducer, initialState) {
 
         listeners.add(listener);
 
+        // La función devuelta recuerda qué suscriptor retirar cuando la vista deja de observar el store.
         return function unsubscribe() {
             listeners.delete(listener);
         };

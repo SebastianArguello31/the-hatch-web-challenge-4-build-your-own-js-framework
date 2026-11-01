@@ -12,6 +12,7 @@ function assert(condition, message) {
     }
 }
 
+// Cada caso recibe un contenedor vacío. Un fallo se registra en la página y los demás casos pueden continuar.
 function test(name, run) {
     total += 1;
 
@@ -59,6 +60,7 @@ test("JSX entrega propiedades e hijos al componente", (container) => {
     assert(content.firstChild.textContent === "0", "El cero debe conservarse.");
 });
 
+// Guardar las referencias permite detectar si el renderizador reconstruye un nodo que debía conservar.
 test("Actualizar texto conserva el nodo y el borrador del usuario", (container) => {
     function view(count) {
         return (
@@ -105,6 +107,7 @@ test("Las propiedades cambian y una etiqueta distinta reemplaza al nodo", (conta
     assert(checkbox.parentNode === null, "La casilla anterior debe quedar fuera.");
 });
 
+// La secuencia de clics distingue un manejador sustituido de dos manejadores acumulados.
 test("Cambiar y quitar onClick actualiza el manejador del mismo botón", (container) => {
     const calls = [];
 
@@ -181,6 +184,7 @@ test("Las tareas con key conservan su identidad al mover, insertar y eliminar", 
     assert(listNode.firstChild?.dataset.id === "5", "Debe poder llenarse otra vez.");
 });
 
+// Este caso recorre el flujo completo desde el evento hasta el DOM y después cancela la suscripción.
 test("Un clic recorre FLUX y actualiza el componente suscrito", (container) => {
     const initialState = Object.freeze({ count: 0 });
 
