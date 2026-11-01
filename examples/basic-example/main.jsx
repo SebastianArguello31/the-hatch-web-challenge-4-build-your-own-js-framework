@@ -1,53 +1,111 @@
-import { createElement, render } from "../../src/mini-framework.js";
+import { createElement, createStore, render } from "../../src/mini-framework.js";
 
 const container = document.getElementById("app");
 
-let count = 0;
-let showDescription = true;
-let useAlternativeTitle = false;
-let nextTaskId = 3;
+const initialState = {
+    count: 0,
+    showDescription: true,
+    useAlternativeTitle: false,
+    nextTaskId: 3,
+    tasks: [
+        { id: 1, title: "Estudiar el Virtual DOM" },
+        { id: 2, title: "Practicar eventos" }
+    ]
+};
 
-let tasks = [
-    { id: 1, title: "Estudiar el Virtual DOM" },
-    { id: 2, title: "Practicar eventos" }
-];
+function reducer(state, action) {
+    switch (action.type) {
+        case "counter/increment":
+            return {
+                ...state,
+                count: state.count + 1
+            };
 
-function increment() {
-    count += 1;
-    updateView();
+        case "description/toggle":
+            return {
+                ...state,
+                showDescription: !state.showDescription
+            };
+
+        case "title/toggle":
+            return {
+                ...state,
+                useAlternativeTitle: !state.useAlternativeTitle
+            };
+
+        case "tasks/reverse":
+            if (state.tasks.length < 2) {
+                return state;
+            }
+
+            return {
+                ...state,
+                tasks: [...state.tasks].reverse()
+            };
+
+        case "task/add": {
+            const task = {
+                id: state.nextTaskId,
+                title: `Tarea de ejemplo ${state.nextTaskId}`
+            };
+
+            return {
+                ...state,
+                nextTaskId: state.nextTaskId + 1,
+                tasks: [...state.tasks, task]
+            };
+        }
+
+        case "task/remove": {
+            const remainingTasks = state.tasks.filter(
+                (task) => task.id !== action.payload
+            );
+
+            if (remainingTasks.length === state.tasks.length) {
+                return state;
+            }
+
+            return {
+                ...state,
+                tasks: remainingTasks
+            };
+        }
+
+        default:
+            return state;
+    }
 }
 
-function toggleDescription() {
-    showDescription = !showDescription;
-    updateView();
-}
+const store = createStore(reducer, initialState);
 
-function toggleTitleType() {
-    useAlternativeTitle = !useAlternativeTitle;
-    updateView();
-}
+const actions = {
+    increment() {
+        store.dispatch({ type: "counter/increment" });
+    },
 
-function reverseTasks() {
-    tasks = [...tasks].reverse();
-    updateView();
-}
+    toggleDescription() {
+        store.dispatch({ type: "description/toggle" });
+    },
 
-function addTask() {
-    const task = {
-        id: nextTaskId,
-        title: `Tarea de ejemplo ${nextTaskId}`
-    };
+    toggleTitleType() {
+        store.dispatch({ type: "title/toggle" });
+    },
 
-    nextTaskId += 1;
-    tasks = [...tasks, task];
+    reverseTasks() {
+        store.dispatch({ type: "tasks/reverse" });
+    },
 
-    updateView();
-}
+    addTask() {
+        store.dispatch({ type: "task/add" });
+    },
 
-function removeTask(id) {
-    tasks = tasks.filter((task) => task.id !== id);
-    updateView();
-}
+    removeTask(id) {
+        store.dispatch({
+            type: "task/remove",
+            payload: id
+        });
+    }
+};
 
 function ActionButton({ id, onClick, children }) {
     return (
@@ -59,10 +117,10 @@ function ActionButton({ id, onClick, children }) {
 
 function PageTitle({ alternative }) {
     if (alternative) {
-        return <h2 id="page-title">Componentes y JSX</h2>;
+        return <h2 id="page-title">Estado y arquitectura FLUX</h2>;
     }
 
-    return <h1 id="page-title">Componentes y JSX</h1>;
+    return <h1 id="page-title">Estado y arquitectura FLUX</h1>;
 }
 
 function Counter({ value, onIncrement }) {
@@ -99,25 +157,27 @@ function TaskList({ items, onRemove }) {
     );
 }
 
-function App() {
+function App({ state }) {
     return (
         <main className="app">
-            <PageTitle alternative={useAlternativeTitle} />
+            <PageTitle alternative={state.useAlternativeTitle} />
 
-            <Counter value={count} onIncrement={increment} />
+            <Counter value={state.count} onIncrement={actions.increment}/>
 
-            <ActionButton onClick={toggleTitleType}>
+            <ActionButton onClick={actions.toggleTitleType}>
                 Cambiar etiqueta del título
             </ActionButton>
 
-            <ActionButton onClick={toggleDescription}>
-                {showDescription
+            <ActionButton onClick={actions.toggleDescription}>
+                {state.showDescription
                 ? "Ocultar descripción"
                 : "Mostrar descripción"}
             </ActionButton>
 
             <section id="description">
-                {showDescription && (<p>Esta interfaz utiliza componentes de nuestro framework.</p>)}
+                {state.showDescription && (
+                    <p>Las acciones actualizan el store y sus suscriptores actualizan la interfaz.</p>
+                )}
             </section>
 
             <label htmlFor="preserved-input">
@@ -126,21 +186,26 @@ function App() {
 
             <input id="preserved-input" type="text" placeholder="El texto debe conservarse"/>
 
-            <ActionButton onClick={reverseTasks}>
+            <ActionButton onClick={actions.reverseTasks}>
                 Invertir tareas
             </ActionButton>
 
-            <ActionButton onClick={addTask}>
+            <ActionButton onClick={actions.addTask}>
                 Añadir tarea de ejemplo
             </ActionButton>
 
-            <TaskList items={tasks} onRemove={removeTask} />
+            <TaskList items={state.tasks} onRemove={actions.removeTask}/>
         </main>
     );
 }
 
 function updateView() {
-    render(<App />, container);
+    render(
+        <App state={store.getState()} />,
+        container
+    );
 }
+
+store.subscribe(updateView);
 
 updateView();
