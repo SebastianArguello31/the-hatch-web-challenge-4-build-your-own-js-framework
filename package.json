@@ -1,0 +1,15 @@
+{
+  "name": "mini-js-framework",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mini-framework educativo de JavaScript con Virtual DOM y arquitectura FLUX.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^8.0.0"
+  }
+}
